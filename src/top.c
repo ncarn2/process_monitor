@@ -3,6 +3,9 @@
 #include <stdio.h>
 #include <unistd.h>
 
+
+int read_proc();
+
 int main() {
 
     char cwd[PATH_MAX];
