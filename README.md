@@ -1,7 +1,7 @@
 # Top
 
 ### Description: 
-This is an implementation of the top program written in GNU C.
+This is an implementation of the top program written in C. The majority of the functionality comes from reading the proc directory.
 
 ### Usage:
 ```bash
