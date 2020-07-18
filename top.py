@@ -59,28 +59,31 @@ def trash(stdscr):
         max_num_cols = (curses.COLS // 2) - 10 # len('1[ 95.6%] ')
 
         left = True
-        for i, percent in enumerate(psutil.cpu_percent(percpu = True)):
+        cpu_percents = psutil.cpu_percent(percpu = True)
+        cpu_num = 0
 
+        for i in range(len(cpu_percents) // 2):
             # Left bar
-            if left:
-                top_window.addstr(i, 0, str(i + 1), curses.color_pair(5))
-                top_window.addstr(i, 1, '[')
-                top_window.attron(curses.color_pair(4))
-                top_window.addstr('|' * round((percent / 100) * max_num_cols))
-                top_window.attroff(curses.color_pair(4))
-                top_window.addstr(i, max_num_cols + 3, str(percent) + '%', curses.color_pair(6))
-                top_window.addstr(']')
-                left = False
-            else:
-                # Right bar
-                top_window.addstr(i - 1, curses.COLS // 2, str(i + 1), curses.color_pair(5))
-                top_window.addstr(i - 1, curses.COLS // 2 + 1, '[')
-                top_window.attron(curses.color_pair(4))
-                top_window.addstr('|' * round((percent / 100) * max_num_cols))
-                top_window.attroff(curses.color_pair(4))
-                top_window.addstr(i - 1, (curses.COLS // 2) + max_num_cols, str(percent) + '%', curses.color_pair(6))
-                top_window.addstr(']')
-                left = True 
+            percent = cpu_percents[i]
+            cpu_num += 1
+            top_window.addstr(i, 0, str(cpu_num), curses.color_pair(5))
+            top_window.addstr(i, 1, '[')
+            top_window.attron(curses.color_pair(4))
+            top_window.addstr('|' * round((percent / 100) * max_num_cols))
+            top_window.attroff(curses.color_pair(4))
+            top_window.addstr(i, max_num_cols + 3, str(percent) + '%', curses.color_pair(6))
+            top_window.addstr(']')
+
+            # Right bar
+            cpu_num += 1
+            percent = cpu_percents[i + 1]
+            top_window.addstr(i, curses.COLS // 2, str(cpu_num), curses.color_pair(5))
+            top_window.addstr(i, curses.COLS // 2 + 1, '[')
+            top_window.attron(curses.color_pair(4))
+            top_window.addstr('|' * round((percent / 100) * max_num_cols))
+            top_window.attroff(curses.color_pair(4))
+            top_window.addstr(i, (curses.COLS // 2) + max_num_cols, str(percent) + '%', curses.color_pair(6))
+            top_window.addstr(']')
         
         top_window.addstr(top_window_cols- 1, 0, 'CPU [')
         cpu_percent = psutil.cpu_percent()
