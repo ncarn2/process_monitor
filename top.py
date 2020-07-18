@@ -64,7 +64,8 @@ def trash(stdscr):
 
         for i in range(len(cpu_percents) // 2):
             # Left bar
-            percent = cpu_percents[i]
+
+            percent = cpu_percents[cpu_num]
             cpu_num += 1
             top_window.addstr(i, 0, str(cpu_num), curses.color_pair(5))
             top_window.addstr(i, 1, '[')
@@ -75,8 +76,8 @@ def trash(stdscr):
             top_window.addstr(']')
 
             # Right bar
+            percent = cpu_percents[cpu_num]
             cpu_num += 1
-            percent = cpu_percents[i + 1]
             top_window.addstr(i, curses.COLS // 2, str(cpu_num), curses.color_pair(5))
             top_window.addstr(i, curses.COLS // 2 + 1, '[')
             top_window.attron(curses.color_pair(4))
