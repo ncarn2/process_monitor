@@ -25,7 +25,6 @@ def normalize(num):
 
 def trash(stdscr):
     k = 0
-    cpus = []
     curses.initscr()
     curses.noecho()
     curses.cbreak()
@@ -58,17 +57,16 @@ def trash(stdscr):
 
         max_num_cols = (curses.COLS // 2) - 10 # len('1[ 95.6%] ')
 
-        left = True
         cpu_percents = psutil.cpu_percent(percpu = True)
         cpu_num = 0
 
         for i in range(len(cpu_percents) // 2):
-            # Left bar
 
+            # Left bar
             percent = cpu_percents[cpu_num]
             cpu_num += 1
             top_window.addstr(i, 0, str(cpu_num), curses.color_pair(5))
-            top_window.addstr(i, 1, '[')
+            top_window.addstr(i, 1, '  [')
             top_window.attron(curses.color_pair(4))
             top_window.addstr('|' * round((percent / 100) * max_num_cols))
             top_window.attroff(curses.color_pair(4))
@@ -85,11 +83,37 @@ def trash(stdscr):
             top_window.attroff(curses.color_pair(4))
             top_window.addstr(i, (curses.COLS // 2) + max_num_cols, str(percent) + '%', curses.color_pair(6))
             top_window.addstr(']')
-        
-        top_window.addstr(top_window_cols- 1, 0, 'CPU [')
+
+
+        # Mem Usage
+        mem_tot = round(psutil.virtual_memory().total  * 0.000000001, 1)
+        mem_current = round(mem_tot - (psutil.virtual_memory().available * 0.000000001), 1) 
+
+        top_window.addstr(top_window_cols - 4, 0, 'MEM[', curses.color_pair(5))        
+        top_window.addstr(top_window_cols - 4, len('MEM'), '[')
+        top_window.attron(curses.color_pair(4))
+        top_window.addstr('|' * round((mem_current / mem_tot) * max_num_cols))
+        top_window.attroff(curses.color_pair(4))
+        top_window.addstr(top_window_cols - 4, max_num_cols - 1, str(mem_current) + '/' + str(mem_tot), curses.color_pair(6))
+        top_window.addstr(']')
+
+        # Swp Usage
+        swp_tot = round(psutil.swap_memory().total  * 0.000000001, 1)
+        swp_current = round(psutil.swap_memory().used * 0.000000001, 1)
+
+        top_window.addstr(top_window_cols - 3, 0, 'SWP[', curses.color_pair(5))        
+        top_window.addstr(top_window_cols - 3, len('SWP'), '[')
+        top_window.attron(curses.color_pair(4))
+        top_window.addstr('|' * round((swp_current / swp_tot) * max_num_cols))
+        top_window.attroff(curses.color_pair(4))
+        top_window.addstr(top_window_cols - 3, max_num_cols - 1, str(swp_current) + '/' + str(swp_tot), curses.color_pair(6))
+        top_window.addstr(']')
+
+        # CPU Usage
         cpu_percent = psutil.cpu_percent()
+
+        top_window.addstr(top_window_cols- 1, 0, 'CPU [')
         top_window.attron(curses.color_pair(2))
-        # top_window.addstr(top_window_cols - 1, len('CPU [') + 1, '|' * round(cpu_percent * max_num_cols))
         top_window.addstr('|' * round(cpu_percent / 100 * max_num_cols))
         top_window.attroff(curses.color_pair(2))
         top_window.addstr(top_window_cols - 1, max_num_cols + 3, str(cpu_percent) + '%', curses.color_pair(6))
