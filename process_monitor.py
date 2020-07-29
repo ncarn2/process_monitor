@@ -13,9 +13,8 @@ class Screen():
     def __init__(self, menu='process_monitor'):
         self.menu = menu
 
-        curses.initscr()
-        # init refresh speed
-        curses.halfdelay(10)
+    def start(self):
+        stdscr = curses.initscr()
 
         # init colors
         if curses.has_colors():
@@ -31,15 +30,10 @@ class Screen():
             except:
                 curses.init_pair(6, curses.COLOR_BLACK, curses.COLOR_WHITE)
 
-    def start(self):
-        stdscr = curses.initscr()
-
         if self.menu == 'process_monitor': curses.wrapper(self.process_monitor)
         elif self.menu == 'help': curses.wrapper(self.help_menu)
         elif self.menu == 'some_other_monitor': curses.wrapper(self.some_other_monitor)
         else: curses.wrapper(self.process_monitor)
-
-        # help_menu(stdscr) # this is how ide like to do it
 
     def stop(self):
         curses.endwin()
@@ -49,6 +43,7 @@ class Screen():
         Display the usage stuff
         """
         stdscr.clear()
+        stdscr.nodelay(False)
 
         stdscr.attron(curses.color_pair(4))
         stdscr.addstr('top ' + str(self.__version__) + ' - (C) 2020 ' + self.__author__)
@@ -69,31 +64,30 @@ class Screen():
         Display the usage stuff
         """
         stdscr.clear()
+        stdscr.nodelay(False)
 
         stdscr.attron(curses.color_pair(4))
         stdscr.addstr('top ' + str(self.__version__) + ' - (C) 2020 ' + self.__author__)
         stdscr.addstr('\nReleased under the GNU GPL.')
         stdscr.attroff(curses.color_pair(4))
-
-        stdscr.addstr('\nCPU usage bar: []')
-        stdscr.addstr('\nMemory bar: []')
-        stdscr.addstr('\nSwap bar: []')
-        stdscr.addstr('\nType and layout of header meters are configurable in the setup screen')
-        stdscr.addstr('\n\tStatus ')
+        stdscr.addstr('SETUP SCREEN', curses.color_pair(3))
          
         stdscr.addstr('\nPress any key to return...', curses.color_pair(3))
         k = stdscr.getch()
 
     def process_monitor(self, stdscr):
         stdscr.clear()
+
+        stdscr.nodelay(True)
         top_window_cols = (psutil.cpu_count() // 2) + 4
+
         k = 0
 
         # TODO: curses.KEY_RESIZE() for window resizing
 
-        args = [ord('q'), ord('h'), ord('s')]
-        while k not in args:
+        options = [ord('q'), ord('h'), ord('s')]
 
+        while k not in options:
             top_window = curses.newwin(top_window_cols, curses.COLS, 0, 0)
             bottom_window = curses.newwin(curses.LINES - top_window_cols, curses.COLS, top_window_cols, 0)
 
@@ -126,10 +120,6 @@ class Screen():
                 top_window.attroff(curses.color_pair(4))
                 top_window.addstr(i, (curses.COLS // 2) + max_num_cols, str(percent) + '%', curses.color_pair(6))
                 top_window.addstr(']')
-
-                top_window.noutrefresh()
-                bottom_window.noutrefresh()
-
 
             # Mem Usage
             mem_tot = round(psutil.virtual_memory().total  * 0.000000001, 1)
@@ -179,33 +169,39 @@ class Screen():
             bottom_window.addstr(0, len(statusbar), " " * (curses.COLS - len(statusbar)))
             bottom_window.attroff(curses.color_pair(1))
 
+            # TODO: keep track of which process the cursor is over, and display all processes
+            # after the row the cursor is on below it up until the screen depth: 
+            # (7 (however deep the top_window is)+ curses.ROWS). Highlight the row that the
+            # cursor is over and accept new 'options'. Each screen should contain its own
+            # options. Allow for sorting options, sort by PID, mem %, and cpu %. After a specific
+            # key is pressed
             for i, proc in enumerate(psutil.process_iter()):
+                # There are too many of them, must 
                 mem_percent = str(round(proc.memory_percent(), 2))
-                bottom_window.addstr(i + 1, 0, 'MEM%  ' + mem_percent)
+                bottom_window.addstr(i % 37 + 1, 0, str(i))
 
-                cpu_percent = str(round(proc.cpu_percent(), 2))
-                bottom_window.addstr(i + 1, len('MEM% ' + mem_percent) + 2, 'CPU% ' + cpu_percent)
-                
-                name = str(proc.name())
-                bottom_window.addstr(i + 1, len('CPU%' + cpu_percent + 'MEM%  ' + mem_percent) + 9, 'NAME ' + name)
+                #cpu_percent = str(round(proc.cpu_percent(), 2))
+                #bottom_window.addstr(i, len('MEM% ' + mem_percent) + 2, 'CPU% ' + cpu_percent)
+                #
+                #name = str(proc.name())
+                #bottom_window.addstr(i, len('CPU%' + cpu_percent + 'MEM%  ' + mem_percent) + 9, 'NAME ' + name)
 
             top_window.noutrefresh()
             bottom_window.noutrefresh()
 
             curses.doupdate()
-            
-            time.sleep(1)
 
-            k = top_window.getch()
+            time.sleep(1)
+            k = stdscr.getch()
 
         if k == ord('h'):
-            curses.wrapper(self.help_menu(stdscr))
-            curses.wrapper(self.process_monitor(stdscr)) #TODO: do this better! 
+            self.help_menu(stdscr)
+            self.process_monitor(stdscr) #TODO: do this better! 
         elif k == ord('q'):
             self.stop()
         elif k == ord('s'):
-            curses.wrapper(self.setup_menu(stdscr))
-            curses.wrapper(self.process_monitor(stdscr)) #TODO: do this better! 
+            self.setup_menu(stdscr)
+            self.process_monitor(stdscr) #TODO: do this better! 
         else:
             self.stop()
 
@@ -214,6 +210,7 @@ def init_args():
         description = 'process monitor'
     )
     parser.add_argument(
+        '-v',
         '--version',
         action='store_true',
         help='Display version and exit'
@@ -233,10 +230,8 @@ def main():
     screen = Screen(menu=temp) #TODO: add an arg parser and pass into screen
 
     if args['version']:
-        print('top v{}'.format(screen.__version__))
+        print('process_monitor v{}'.format(screen.__version__))
         sys.exit()
-
-
 
     screen.start()
 

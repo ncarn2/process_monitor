@@ -2,15 +2,16 @@
 
 set -e 
 
-NAME='top.py'
+NAME='process_monitor.py'
 GREEN='\033[0;32m'
 RED='\033[0;31m'
 NC='\033[0m'
 
-# echo -e "${GREEN}Running python3 top.py${NC}"
-# python3 $NAME
-# sleep 1
+echo -e "${GREEN}Running python3 top.py${NC}"
+python3 $NAME
+sleep 1
 
-echo -e "${RED}Argument Test:${NC}"
-echo -e "${GREEN}Running python3 $NAME --version${NC}"
-python3 $NAME --version
+#echo -e "${RED}Argument Test:${NC}"
+#echo -e "${GREEN}Running python3 $NAME --version${NC}"
+#python3 $NAME --version
+reset # This needs to not be here...
