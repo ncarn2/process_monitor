@@ -1,2 +1,2 @@
-### Contains tests for the different sorting algorithms  and [termgraph]( https://github.com/mkaz/termgraph)
+### Contains tests for different parts of the system monitor
 
