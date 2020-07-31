@@ -14,7 +14,7 @@ class Screen():
 
     def __init__(self, menu='process_monitor'):
         self.menu = menu
-        self.options = [ord('q'), ord('h'), ord('s'), ord('j'), ord('k')]
+        self.options = [ord('q'), ord('G'), ord('h'), ord('s'), ord('j'), ord('k')]
         self.process_list: List[psutil.Process]
         self.sorted_by = 'PID'
         self.sort_processes()
@@ -25,6 +25,7 @@ class Screen():
         curses.initscr()
         # make cursor invisible
         curses.curs_set(0)
+        curses.delay_output(100)
 
         # init colors
         if curses.has_colors():
@@ -40,13 +41,15 @@ class Screen():
             except:
                 curses.init_pair(6, curses.COLOR_BLACK, curses.COLOR_WHITE)
 
-        self.top_window_cols = (psutil.cpu_count() // 2) + 4
+        self.top_window_rows = (psutil.cpu_count() // 2) + 4
 
-        self.top_window = curses.newwin(self.top_window_cols, curses.COLS, 0, 0)
-        self.bottom_window = curses.newwin(curses.LINES - self.top_window_cols, curses.COLS, self.top_window_cols, 0)
+        self.top_window = curses.newwin(self.top_window_rows, curses.COLS, 0, 0)
+        # TODO: this should be a pad. It can be larger than the display size :)
+        self.bottom_window = curses.newwin(curses.LINES - self.top_window_rows, curses.COLS, self.top_window_rows, 0)
+        self.bottom_window_depth = curses.LINES - self.top_window_rows
 
-        self.top_window.nodelay(True)
-        self.bottom_window.nodelay(True)
+        #self.top_window.nodelay(True)
+        #self.bottom_window.nodelay(True)
 
         curses.wrapper(self.main_loop)
 
@@ -110,6 +113,8 @@ class Screen():
                 elif self.k == ord('s'):
                     self.setup_menu(stdscr)
                     self.top_window.clear()
+                elif self.k == ord('G'):
+                    self.cursor_position = self.bottom_window_depth - 2
                 elif self.k == ord('k'):
                     # up
                     if self.cursor_position == 0: self.cursor_position = len(self.process_list) - 1
@@ -128,17 +133,19 @@ class Screen():
             self.sort_processes()
             self.process_monitor()
 
-            self.top_window.refresh()
-            self.bottom_window.refresh()
+            self.top_window.noutrefresh()
+            self.bottom_window.noutrefresh()
+            curses.doupdate()
 
-            time.sleep(1)
-            self.k = stdscr.getch()
+            #time.sleep(1)
+            # This needs to happen faster and not store every key press
+            self.k = stdscr.getch() 
 
         self.stop()
             
     def system_monitor(self):
+        self.top_window.clear()
         max_num_cols = (curses.COLS // 2) - 10 # len('1[ 95.6%] ')
-
         cpu_percents = psutil.cpu_percent(percpu = True)
         cpu_num = 0
 
@@ -171,39 +178,39 @@ class Screen():
         mem_tot = round(psutil.virtual_memory().total  * 0.000000001, 1)
         mem_current = round(mem_tot - (psutil.virtual_memory().available * 0.000000001), 1) 
 
-        self.top_window.addstr(self.top_window_cols - 4, 0, 'MEM[', curses.color_pair(5))        
-        self.top_window.addstr(self.top_window_cols - 4, len('MEM'), '[')
+        self.top_window.addstr(self.top_window_rows - 4, 0, 'MEM[', curses.color_pair(5))        
+        self.top_window.addstr(self.top_window_rows - 4, len('MEM'), '[')
         self.top_window.attron(curses.color_pair(4))
         self.top_window.addstr('|' * round((mem_current / mem_tot) * max_num_cols))
         self.top_window.attroff(curses.color_pair(4))
-        self.top_window.addstr(self.top_window_cols - 4, max_num_cols - 1, str(mem_current) + '/' + str(mem_tot), curses.color_pair(6))
+        self.top_window.addstr(self.top_window_rows - 4, max_num_cols - 1, str(mem_current) + '/' + str(mem_tot), curses.color_pair(6))
         self.top_window.addstr(']')
 
         # Swp Usage
         # swp_tot = round(psutil.swap_memory().total  * 0.000000001, 1)
         # swp_current = round(psutil.swap_memory().used * 0.000000001, 1)
 
-        # self.top_window.addstr(self.top_window_cols - 3, 0, 'SWP[', curses.color_pair(5))        
-        # self.top_window.addstr(self.top_window_cols - 3, len('SWP'), '[')
+        # self.top_window.addstr(self.top_window_rows - 3, 0, 'SWP[', curses.color_pair(5))        
+        # self.top_window.addstr(self.top_window_rows - 3, len('SWP'), '[')
         # self.top_window.attron(curses.color_pair(4))
         # self.top_window.addstr('|' * round((swp_current / swp_tot) * max_num_cols))
         # self.top_window.attroff(curses.color_pair(4))
-        # self.top_window.addstr(self.top_window_cols - 3, max_num_cols - 1, str(swp_current) + '/' + str(swp_tot), curses.color_pair(6))
+        # self.top_window.addstr(self.top_window_rows - 3, max_num_cols - 1, str(swp_current) + '/' + str(swp_tot), curses.color_pair(6))
         # self.top_window.addstr(']')
 
         # CPU Usage
         cpu_percent = psutil.cpu_percent()
 
-        self.top_window.addstr(self.top_window_cols- 1, 0, 'CPU [')
+        self.top_window.addstr(self.top_window_rows- 1, 0, 'CPU [')
         self.top_window.attron(curses.color_pair(2))
         self.top_window.addstr('|' * round(cpu_percent / 100 * max_num_cols))
         self.top_window.attroff(curses.color_pair(2))
-        self.top_window.addstr(self.top_window_cols - 1, max_num_cols + 3, str(cpu_percent) + '%', curses.color_pair(6))
+        self.top_window.addstr(self.top_window_rows - 1, max_num_cols + 3, str(cpu_percent) + '%', curses.color_pair(6))
         self.top_window.addstr(']')
 
-        self.top_window.addstr(self.top_window_cols - 1, curses.COLS // 2, 'UPTIME ')
+        self.top_window.addstr(self.top_window_rows - 1, curses.COLS // 2, 'UPTIME ')
         self.top_window.attron(curses.color_pair(2))
-        self.top_window.addstr(self.top_window_cols - 1, (curses.COLS // 2) + len('UPTIME '), str(round((time.time() - psutil.boot_time()) / 3600, 2)) + ' hours')
+        self.top_window.addstr(self.top_window_rows - 1, (curses.COLS // 2) + len('UPTIME '), str(round((time.time() - psutil.boot_time()) / 3600, 2)) + ' hours')
         self.top_window.attroff(curses.color_pair(2))
 
     def sort_processes(self):
@@ -215,8 +222,6 @@ class Screen():
 
     def process_monitor(self):
         self.bottom_window.clear()
-        self.bottom_window.nodelay(True)
-
 
         # Display the status bar
         statusbar = ['PID', 'USER', 'MEM', 'CPU', 'NAME']
@@ -225,7 +230,8 @@ class Screen():
             if parameter == self.sorted_by:
                 self.bottom_window.addstr(0, total_length, parameter + '    ', curses.color_pair(2))
             else:
-                self.bottom_window.addstr(0, total_length, parameter + '    ', curses.color_pair(1))
+                self.bottom_window.addstr(0, total_length, parameter, curses.color_pair(1))
+                self.bottom_window.addstr(0, total_length + len(parameter),'    ', curses.color_pair(1))
             total_length += (len(parameter) + len('    '))
             
         self.bottom_window.addstr(0, total_length, " " * (curses.COLS - total_length), curses.color_pair(1))
@@ -241,10 +247,11 @@ class Screen():
         # cursor is over and accept new 'options'. Each screen should contain its own
         # options. Allow for sorting options, sort by PID, mem %, and cpu %. After a specific
         # key is pressed
-        bottom_window_depth = curses.LINES - self.top_window_cols
 
         self.sort_processes()
         for i, proc in enumerate(self.process_list):
+            if i >= self.bottom_window_depth - 2:
+                break
             mem_percent = str(round(proc.memory_percent(), 2))
             cpu_percent = str(round(proc.cpu_percent(), 2))
             name = str(proc.name())
@@ -259,7 +266,7 @@ class Screen():
                 self.bottom_window.attroff(curses.color_pair(2))
             else:
                 self.bottom_window.addstr(i + 1, 0, cleaned_process) 
-        self.bottom_window.addstr(bottom_window_depth - 1, 0, 'THE TEST OUTPUT: ' + str(self.current_process.pid) + ' ' + str(self.current_process.name()), curses.color_pair(3))
+        self.bottom_window.addstr(self.bottom_window_depth - 1, 0, 'THE TEST OUTPUT: ' + str(self.current_process.pid) + ' ' + str(self.current_process.name()), curses.color_pair(3))
 
 def init_args():
     parser = argparse.ArgumentParser(
