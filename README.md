@@ -15,7 +15,7 @@ For a better monitoring tool, I recommend [glances](https://github.com/nicolargo
 
 > Current:
 
-`git clone https://github.com/ncarn2/process_monitor.git`
+`git clone https://github.com/ncarn2/system_monitor.git`
 
 
 ## Usage
