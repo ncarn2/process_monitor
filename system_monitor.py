@@ -42,9 +42,10 @@ class Screen():
                 curses.init_pair(6, curses.COLOR_BLACK, curses.COLOR_WHITE)
 
     def resize_handler(self, signum, frame):
-        self.max_y, self.max_x = self.top_window.getmaxyx()
+        self.max_y, temp = self.top_window.getmaxyx()
         self.top_window.clear()
         self.bottom_window.clear()
+        self.last_updated = -1
         self.create_windows()
 
     def create_windows(self):
@@ -106,7 +107,7 @@ class Screen():
             if time.time() - self.last_updated > 1.0 or self.last_updated == -1: # this seems like a terrible way to do this :(
                 self.last_updated = time.time()
                 self.top_window.refresh() # TODO: refresh thitime.time() - self.start_time > 1.0s one every second no matter what !!
-            self.bottom_window.refresh(0, 0, self.top_window_rows + 1, 0, curses.LINES - 2, curses.COLS - 2)
+            self.bottom_window.refresh(0, 0, self.top_window_rows + 1, 0, curses.LINES - 2, self.max_x - 2)
 
             self.k = self.bottom_window.getch() # Get the users input
 
@@ -156,7 +157,7 @@ class Screen():
     def system_monitor(self):
         # We just need to update one thing from here ...
         self.top_window.erase()
-        max_num_cols = (self.max_x // 2) - 10 # len('1[ 95.6%] ')
+        max_num_cols = (self.max_x // 2) - len('1[ 100.0%] ')
         cpu_num = 0
 
         cpu_percents = psutil.cpu_percent(percpu = True)
@@ -182,7 +183,7 @@ class Screen():
             self.top_window.attron(curses.color_pair(4))
             self.top_window.addstr('|' * round((percent / 100) * max_num_cols))
             self.top_window.attroff(curses.color_pair(4))
-            self.top_window.addstr(i, (curses.COLS // 2) + max_num_cols, str(percent) + '%', curses.color_pair(6))
+            self.top_window.addstr(i, (self.max_x // 2) + max_num_cols, str(percent) + '%', curses.color_pair(6))
             self.top_window.addstr(']')
 
         # Mem Usage
@@ -219,9 +220,15 @@ class Screen():
         self.top_window.addstr(self.top_window_rows - 1, max_num_cols + 3, str(cpu_percent) + '%', curses.color_pair(6))
         self.top_window.addstr(']')
 
-        self.top_window.addstr(self.top_window_rows - 1, curses.COLS // 2, 'UPTIME ')
+        c = time.time() - psutil.boot_time() 
+        days = round(c // 86400)
+        hours = round(c // 3600 % 24)
+        minutes = round(c // 60 % 60)
+        seconds = round(c % 60)
+
+        self.top_window.addstr(self.top_window_rows - 1, self.max_x // 2, 'UPTIME ')
         self.top_window.attron(curses.color_pair(2))
-        self.top_window.addstr(self.top_window_rows - 1, (curses.COLS // 2) + len('UPTIME '), str(round((time.time() - psutil.boot_time()) / 3600, 2)) + ' hours')
+        self.top_window.addstr(self.top_window_rows - 1, (self.max_x // 2) + len('UPTIME '), str(hours) + ":" + str(minutes) + ":" + str(seconds))
         self.top_window.attroff(curses.color_pair(2))
 
     def sort_processes(self):
@@ -234,50 +241,38 @@ class Screen():
     def process_monitor(self):
         self.bottom_window.erase()
 
-        # Display the status bar
-        statusbar = ['PID', 'USER', 'MEM', 'CPU', 'NAME']
-        total_length = 0
-        for parameter in statusbar:
-            if parameter == self.sorted_by:
-                self.bottom_window.addstr(0, total_length, parameter + '    ', curses.color_pair(2))
-            else:
-                self.bottom_window.addstr(0, total_length, parameter, curses.color_pair(1))
-                self.bottom_window.addstr(0, total_length + len(parameter),'    ', curses.color_pair(1))
-            total_length += (len(parameter) + len('    '))
+        # These should not be hard coded and should be dynamic
+        pid_length = 5
+        user_length = pid_length + 10
+        mem_length = user_length + 6
+        cpu_length = mem_length + 6
+        name_length = cpu_length + 22
+
+        self.bottom_window.attron(curses.color_pair(1))
+        self.bottom_window.addstr(0, 0, 'PID' + ' ' * pid_length)
+        self.bottom_window.addstr(0, pid_length, 'USER' + ' ' * user_length)
+        self.bottom_window.addstr(0, user_length, 'MEM%' + ' ' * mem_length)
+        self.bottom_window.addstr(0, mem_length, 'CPU%' + ' ' * cpu_length)
+        self.bottom_window.addstr(0, cpu_length , 'Command' + ' ' * name_length)
             
-        self.bottom_window.addstr(0, total_length, " " * (curses.COLS - total_length), curses.color_pair(1))
-
-        max_num_cols = (curses.COLS // 2) - 10 # len('1[ 95.6%] ')
-
-        cpu_percents = psutil.cpu_percent(percpu = True)
-        cpu_num = 0
-
-        # TODO: keep track of which process the cursor is over, and display all processes
-        # after the row the cursor is on below it up until the screen depth: 
-        # (7 (however deep the top_window is)+ curses.ROWS). Highlight the row that the
-        # cursor is over and accept new 'options'. Each screen should contain its own
-        # options. Allow for sorting options, sort by PID, mem %, and cpu %. After a specific
-        # key is pressed
-
-        self.sort_processes()
-
+        self.bottom_window.addstr(0, name_length, " " * (self.max_x - name_length))
+        self.bottom_window.attroff(curses.color_pair(1))
+        
         for i, proc in enumerate(self.process_list):
             if i >= self.bottom_window_depth - 2:
                 break
-            mem_percent = str(round(proc.memory_percent(), 2))
-            cpu_percent = str(round(proc.cpu_percent(), 2))
-            name = str(proc.name())
-            cleaned_process = str(proc.pid) + '    ' + mem_percent + '    ' + cpu_percent + '    ' + name + ' '
-
+            proc_name = ' '.join(proc.cmdline())
             if i == self.cursor_position and self.cursor_position < len(self.process_list):
-                # TODO: Bottom Window Layout
-                self.current_process = proc 
                 self.bottom_window.attron(curses.color_pair(2))
-                self.bottom_window.addstr(i + 1, 0, cleaned_process) 
-                self.bottom_window.addstr(i + 1, len(cleaned_process),  ' ' * (curses.COLS- len(cleaned_process))) 
-                self.bottom_window.attroff(curses.color_pair(2))
             else:
-                self.bottom_window.addstr(i + 1, 0, cleaned_process) 
+                self.bottom_window.attroff(curses.color_pair(2))
+
+            self.bottom_window.addstr(i + 1, 0, str(proc.pid) + ' ' * pid_length)
+            self.bottom_window.addstr(i + 1, pid_length, str(proc.username()) + ' ' * user_length)
+            self.bottom_window.addstr(i + 1, user_length, str(round(proc.memory_percent(), 2)) + ' ' * mem_length)
+            self.bottom_window.addstr(i + 1, mem_length, str(round(proc.cpu_percent(), 2)) + ' ' * cpu_length)
+            self.bottom_window.addstr(i + 1, cpu_length, proc_name + ' ' * (self.max_x - cpu_length - len(proc_name)))
+
 
 def init_args():
     parser = argparse.ArgumentParser(
