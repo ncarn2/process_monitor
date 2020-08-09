@@ -9,7 +9,7 @@ NC='\033[0m'
 echo -e "${GREEN}Running python3 ${NAME} ${NC}"
 python3 $NAME
 echo -e "${RED}Finished running python3 ${NAME}${NC}"
-sleep 1
+# sleep 1
 
-echo -e "${GREEN}Running python3 $NAME --version${NC}"
-python3 $NAME --version
+# echo -e "${GREEN}Running python3 $NAME --version${NC}"
+# python3 $NAME --version

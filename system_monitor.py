@@ -1,14 +1,13 @@
 from typing import List
 import time
+from signal import signal, SIGWINCH
 import sys
-import random # TODO remove
 import argparse
-import curses, psutil
+import curses 
+import psutil
+import threading
 
 class Screen():
-    """
-    Beep Boop
-    """
     __version__ = 0.1
     __author__ = 'Nicholas Carnival'
 
@@ -21,11 +20,11 @@ class Screen():
         self.cursor_position = 0
         self.k = 0 # user input variable
 
-    def start(self):
-        curses.initscr()
+    def init_curses(self):
+        self.max_y, self.max_x = curses.initscr().getmaxyx()
         # make cursor invisible
         curses.curs_set(0)
-        curses.delay_output(100)
+        curses.noecho()
 
         # init colors
         if curses.has_colors():
@@ -36,72 +35,43 @@ class Screen():
             curses.init_pair(3, curses.COLOR_BLACK, curses.COLOR_WHITE)
             curses.init_pair(4, curses.COLOR_GREEN, curses.COLOR_BLACK)
             curses.init_pair(5, curses.COLOR_CYAN, curses.COLOR_BLACK)
+
             try:
                 curses.init_pair(6, 240, -1)
             except:
                 curses.init_pair(6, curses.COLOR_BLACK, curses.COLOR_WHITE)
 
+    def resize_handler(self, signum, frame):
+        self.max_y, self.max_x = self.top_window.getmaxyx()
+        self.top_window.clear()
+        self.bottom_window.clear()
+        self.create_windows()
+
+    def create_windows(self):
         self.top_window_rows = (psutil.cpu_count() // 2) + 4
 
-        self.top_window = curses.newwin(self.top_window_rows, curses.COLS, 0, 0)
+        self.top_window = curses.newwin(self.top_window_rows, self.max_x, 0, 0)
         # TODO: this should be a pad. It can be larger than the display size :)
-        self.bottom_window = curses.newwin(curses.LINES - self.top_window_rows, curses.COLS, self.top_window_rows, 0)
+        self.bottom_window = curses.newpad(100, self.max_x)
         self.bottom_window_depth = curses.LINES - self.top_window_rows
 
-        #self.top_window.nodelay(True)
-        #self.bottom_window.nodelay(True)
+        self.top_window.timeout(1000)
+        self.bottom_window.timeout(1000)
 
+    def start(self):
+        signal(SIGWINCH, self.resize_handler)
+        self.create_windows()
+        self.last_updated = -1 # -1 to start
         curses.wrapper(self.main_loop)
 
     def stop(self):
         curses.endwin()
 
-    def help_menu(self, stdscr):
-        """
-        Display the usage stuff
-        """
-        stdscr.clear()
-        stdscr.nodelay(False)
-
-        stdscr.attron(curses.color_pair(4))
-        stdscr.addstr('top ' + str(self.__version__) + ' - (C) 2020 ' + self.__author__)
-        stdscr.addstr('\nReleased under the GNU GPL.')
-        stdscr.attroff(curses.color_pair(4))
-
-        stdscr.addstr('\nCPU usage bar: []')
-        stdscr.addstr('\nMemory bar: []')
-        stdscr.addstr('\nSwap bar: []')
-        stdscr.addstr('\nType and layout of header meters are configurable in the setup screen')
-        stdscr.addstr('\n\tStatus ')
-        stdscr.addstr('\nPress any key to return...', curses.color_pair(3))
-
-        stdscr.refresh()
-        self.k = stdscr.getch()
-        stdscr.nodelay(True)
-         
-
-    def setup_menu(self, stdscr):
-        """
-        Display the setup stuff
-        """
-        stdscr.clear()
-        stdscr.nodelay(False)
-
-        stdscr.attron(curses.color_pair(4))
-        stdscr.addstr('\nReleased under the GNU GPL.')
-        stdscr.attroff(curses.color_pair(4))
-        stdscr.addstr('SETUP SCREEN', curses.color_pair(3))
-        stdscr
-        stdscr.addstr('\nPress any key to return...', curses.color_pair(3))
-
-        stdscr.refresh()
-        self.k = stdscr.getch()
-        stdscr.nodelay(True)
-
     def main_loop(self, stdscr):
-        # TODO: curses.KEY_RESIZE() for window resizing
-
-        stdscr.nodelay(True)
+        if self.k == curses.KEY_RESIZE:
+            self.create_windows()
+            self.stop()
+            print("SHIT", curses.KEY_RESIZE)
 
         while True:
             if self.k in self.options:
@@ -109,10 +79,10 @@ class Screen():
                     return
                 elif self.k == ord('h'):
                     self.help_menu(stdscr)
-                    self.top_window.clear()
+                    self.last_updated = -1 # Allow the top_window to update immediately after leaving help menu
                 elif self.k == ord('s'):
                     self.setup_menu(stdscr)
-                    self.top_window.clear()
+                    self.last_updated = -1 # Allow the top_window to update immediately after leaving help menu
                 elif self.k == ord('G'):
                     self.cursor_position = self.bottom_window_depth - 2
                 elif self.k == ord('k'):
@@ -129,26 +99,67 @@ class Screen():
                 self.cursor_position = 0 
 
             self.system_monitor()
-            # refreshes process list
+
             self.sort_processes()
             self.process_monitor()
 
-            self.top_window.noutrefresh()
-            self.bottom_window.noutrefresh()
-            curses.doupdate()
+            if time.time() - self.last_updated > 1.0 or self.last_updated == -1: # this seems like a terrible way to do this :(
+                self.last_updated = time.time()
+                self.top_window.refresh() # TODO: refresh thitime.time() - self.start_time > 1.0s one every second no matter what !!
+            self.bottom_window.refresh(0, 0, self.top_window_rows + 1, 0, curses.LINES - 2, curses.COLS - 2)
 
-            #time.sleep(1)
-            # This needs to happen faster and not store every key press
-            self.k = stdscr.getch() 
+            self.k = self.bottom_window.getch() # Get the users input
 
         self.stop()
+
+    def help_menu(self, stdscr):
+        """
+        Display the usage stuff
+        """
+        stdscr.clear()
+
+        stdscr.attron(curses.color_pair(4))
+        stdscr.addstr('system_monitor' + str(self.__version__) + ' - (C) 2020 ' + self.__author__)
+        stdscr.addstr('\nReleased under the GNU GPL.')
+        stdscr.attroff(curses.color_pair(4))
+
+        stdscr.addstr('\nCPU usage bar: []')
+        stdscr.addstr('\nMemory bar: []')
+        stdscr.addstr('\nSwap bar: []')
+        stdscr.addstr('\nType and layout of header meters are configurable in the setup screen')
+        stdscr.addstr('\n\tStatus ')
+        stdscr.addstr('\nPress any key to return...', curses.color_pair(3))
+
+        stdscr.refresh()
+        self.k = stdscr.getch()
+        stdscr.clear()
+        stdscr.refresh()
+
+    def setup_menu(self, stdscr):
+        """
+        Display the setup stuff
+        """
+        stdscr.clear()
+
+        stdscr.attron(curses.color_pair(4))
+        stdscr.addstr('\nReleased under the GNU GPL.')
+        stdscr.attroff(curses.color_pair(4))
+        stdscr.addstr('SETUP SCREEN', curses.color_pair(3))
+        stdscr
+        stdscr.addstr('\nPress any key to return...', curses.color_pair(3))
+
+        stdscr.refresh()
+        self.k = stdscr.getch()
+        stdscr.clear()
+        stdscr.refresh()
             
     def system_monitor(self):
-        self.top_window.clear()
-        max_num_cols = (curses.COLS // 2) - 10 # len('1[ 95.6%] ')
-        cpu_percents = psutil.cpu_percent(percpu = True)
+        # We just need to update one thing from here ...
+        self.top_window.erase()
+        max_num_cols = (self.max_x // 2) - 10 # len('1[ 95.6%] ')
         cpu_num = 0
 
+        cpu_percents = psutil.cpu_percent(percpu = True)
         # Display the Current CPU Usage Stats
         for i in range(len(cpu_percents) // 2):
 
@@ -166,8 +177,8 @@ class Screen():
 
             percent = cpu_percents[cpu_num]
             cpu_num += 1
-            self.top_window.addstr(i, curses.COLS // 2, str(cpu_num), curses.color_pair(5))
-            self.top_window.addstr(i, curses.COLS // 2 + 1, '[')
+            self.top_window.addstr(i, self.max_x // 2, str(cpu_num), curses.color_pair(5))
+            self.top_window.addstr(i, self.max_x // 2 + 1, '[')
             self.top_window.attron(curses.color_pair(4))
             self.top_window.addstr('|' * round((percent / 100) * max_num_cols))
             self.top_window.attroff(curses.color_pair(4))
@@ -221,7 +232,7 @@ class Screen():
         self.process_list = [x for x in psutil.process_iter()]
 
     def process_monitor(self):
-        self.bottom_window.clear()
+        self.bottom_window.erase()
 
         # Display the status bar
         statusbar = ['PID', 'USER', 'MEM', 'CPU', 'NAME']
@@ -249,6 +260,7 @@ class Screen():
         # key is pressed
 
         self.sort_processes()
+
         for i, proc in enumerate(self.process_list):
             if i >= self.bottom_window_depth - 2:
                 break
@@ -258,15 +270,14 @@ class Screen():
             cleaned_process = str(proc.pid) + '    ' + mem_percent + '    ' + cpu_percent + '    ' + name + ' '
 
             if i == self.cursor_position and self.cursor_position < len(self.process_list):
+                # TODO: Bottom Window Layout
                 self.current_process = proc 
-
                 self.bottom_window.attron(curses.color_pair(2))
                 self.bottom_window.addstr(i + 1, 0, cleaned_process) 
                 self.bottom_window.addstr(i + 1, len(cleaned_process),  ' ' * (curses.COLS- len(cleaned_process))) 
                 self.bottom_window.attroff(curses.color_pair(2))
             else:
                 self.bottom_window.addstr(i + 1, 0, cleaned_process) 
-        self.bottom_window.addstr(self.bottom_window_depth - 1, 0, 'THE TEST OUTPUT: ' + str(self.current_process.pid) + ' ' + str(self.current_process.name()), curses.color_pair(3))
 
 def init_args():
     parser = argparse.ArgumentParser(
@@ -293,9 +304,10 @@ def main():
     screen = Screen(menu=temp) #TODO: add an arg parser and pass into screen
 
     if args['version']:
-        print('process_monitor v{}'.format(screen.__version__))
+        print('system_monitor v{}'.format(screen.__version__))
         sys.exit()
 
+    screen.init_curses()
     screen.start()
 
 if __name__ == "__main__":
