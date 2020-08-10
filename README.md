@@ -18,9 +18,10 @@ For a better monitoring tool, I recommend [glances](https://github.com/nicolargo
 ## Usage
 
 `python3 system_monitor.py` in the local directory assuming you have all of the dependencies installed. 
+
 Or:
 `py_system_monitor`
-if installed with the recommended install method. 
+If installed with the recommended install method. 
 
 ## License
 
