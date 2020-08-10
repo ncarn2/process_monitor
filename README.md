@@ -13,11 +13,14 @@ For a better monitoring tool, I recommend [glances](https://github.com/nicolargo
 
 `pip install .`
 
-`py_system_monitor`
+
 
 ## Usage
 
-`python3 system_monitor.py`
+`python3 system_monitor.py` in the local directory assuming you have all of the dependencies installed. 
+Or:
+`py_system_monitor`
+if installed with the recommended install method. 
 
 ## License
 
