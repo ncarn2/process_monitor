@@ -1,13 +1,18 @@
 from typing import List
 import time
+
 try:
     from signal import SIGWINCH
 except ImportError:
     pass
+
 import sys
+import os
 import argparse
 import curses 
 import psutil
+from psutil import AccessDenied
+from psutil import NoSuchProcess
 import threading
 
 class Screen():
@@ -18,14 +23,17 @@ class Screen():
         # This is redundant, use self.keys eventually
         self.options = [ord('q'), ord('G'), ord('h'), ord('s'), ord('j'), ord('k')]
         self.process_list: List[psutil.Process]
-        self.sorted_by = 'PID'
+        if os.name == 'nt':
+            self.sorted_by = 'USER'
+        else:
+            self.sorted_by = 'PID'
         self.selecting_sort = False
         self.sort_processes()
         self.cursor_position = 0
         self.k = 0 # user input variable
         # TODO: use this to change keybindings...
         self.key_bindings = {'q': 'Quit', 'h': 'Help', 'k': 'Up', 'j': 'Down','s': 'Sort'}
-        self.process_headers = [ ('PID', 5), ('USER', 10), ('MEM%', 6), ('CPU%', 6), ('Command', 22) ]
+        self.process_headers = [ ('PID', 6), ('USER', 15), ('MEM%', 6), ('CPU%', 6), ('Command', 22) ]
 
     def init_curses(self):
         self.max_y, self.max_x = curses.initscr().getmaxyx()
@@ -67,10 +75,8 @@ class Screen():
         self.bottom_window.timeout(1000)
 
     def start(self):
-        try:
-            signal(SIGWINCH, self.resize_handler)
-        except:
-            pass
+        try: signal(SIGWINCH, self.resize_handler)
+        except: pass
         self.create_windows()
         self.last_updated = -1 # -1 to start
         curses.wrapper(self.main_loop)
@@ -279,10 +285,13 @@ class Screen():
             process_list = list(psutil.process_iter())
             something = {'' : [ ]}
             for proc in process_list:
-                if proc.username() not in something.keys():
-                    something[proc.username()] = []
-                else:
-                    something[proc.username()].append(proc)
+                try:
+                    if proc.username() not in something.keys():
+                        something[proc.username()] = []
+                    else:
+                        something[proc.username()].append(proc)
+                except (AccessDenied, NoSuchProcess) as e:
+                    continue
 
             for l in something.values():
                 for item in l:
@@ -295,7 +304,10 @@ class Screen():
             # similar users next toeach other
             alphabetical_dict = {'': []}
             for proc in list(psutil.process_iter()):
-                command = proc.cmdline()[0][0] # first character
+                try:
+                    command = proc.cmdline()[0][0] # first character
+                except AccessDenied:
+                    continue
             for l in alphabetical_dict.values():
                 for item in l:
                     self.process_list.append(item)
@@ -304,13 +316,11 @@ class Screen():
         self.bottom_window.erase()
 
         # These should not be hard coded and should be dynamic
-        pid_length = 5
-        user_length = pid_length + 10
+        pid_length = 6
+        user_length = pid_length + 15
         mem_length = user_length + 6
         cpu_length = mem_length + 6
-        command_lenght = cpu_length + 22
-
-        # TODO: set the color of currenlty sorted by
+        command_length = cpu_length + 22
 
         total_width = 0
         for label in self.process_headers:
@@ -323,28 +333,29 @@ class Screen():
             self.bottom_window.addstr(0, total_width + len(label[0]), ' ' * label[1])
             total_width += label[1]
             
-        self.bottom_window.addstr(0, command_lenght, " " * (self.max_x - command_lenght))
+        self.bottom_window.addstr(0, command_length, " " * (self.max_x - command_length))
         self.bottom_window.attroff(curses.color_pair(1))
         
         for i, proc in enumerate(self.process_list):
             if i >= self.bottom_window_depth:
                 break
-            proc_name = ' '.join(proc.cmdline())
-            if i == self.cursor_position and self.cursor_position < len(self.process_list):
-                self.bottom_window.attron(curses.color_pair(2))
-            else:
-                self.bottom_window.attroff(curses.color_pair(2))
+            try:
+                proc_name = ' '.join(proc.cmdline())
+                if i == self.cursor_position and self.cursor_position < len(self.process_list):
+                    self.bottom_window.attron(curses.color_pair(2))
+                else:
+                    self.bottom_window.attroff(curses.color_pair(2))
 
-            self.bottom_window.addstr(i + 1, 0, str(proc.pid) + ' ' * pid_length)
-            self.bottom_window.addstr(i + 1, pid_length, str(proc.username()) + ' ' * user_length)
-            self.bottom_window.addstr(i + 1, user_length, str(round(proc.memory_percent(), 2)) + ' ' * mem_length)
-            self.bottom_window.addstr(i + 1, mem_length, str(round(proc.cpu_percent(), 2)) + ' ' * cpu_length)
-            self.bottom_window.addstr(i + 1, cpu_length, proc_name + ' ' * (self.max_x - cpu_length - len(proc_name)))
+                self.bottom_window.addstr(i + 1, 0, str(proc.pid) + ' ' * pid_length)
+                self.bottom_window.addstr(i + 1, pid_length, str(proc.username()) + ' ' * user_length)
+                self.bottom_window.addstr(i + 1, user_length, str(round(proc.memory_percent(), 2)) + ' ' * mem_length)
+                self.bottom_window.addstr(i + 1, mem_length, str(round(proc.cpu_percent(), 2)) + ' ' * cpu_length)
+                self.bottom_window.addstr(i + 1, cpu_length, proc_name + ' ' * (self.max_x - cpu_length - len(proc_name)))
+            except AccessDenied:
+                i -= 1
 
         total_width = 0
         for key, value in self.key_bindings.items():
-            # 'q' : 'quit'
-
             self.bottom_window.addstr(self.bottom_window_depth, total_width, ' ' + str(key) + ' ', curses.color_pair(3) | curses.A_BOLD)
             total_width += len(str(key)) + 2
             self.bottom_window.addstr(self.bottom_window_depth, total_width, str(value), curses.color_pair(1))
