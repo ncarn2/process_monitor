@@ -1,11 +1,5 @@
 from typing import List
 import time
-
-try:
-    from signal import SIGWINCH
-except ImportError:
-    pass
-
 import sys
 import os
 import argparse
@@ -13,7 +7,9 @@ import curses
 import psutil
 from psutil import AccessDenied
 from psutil import NoSuchProcess
-import threading
+
+try: from signal import SIGWINCH
+except ImportError: pass
 
 class Screen():
     __version__ = 0.1
