@@ -7,7 +7,7 @@ except ImportError:
     from distutils.core import setup
 
 if sys.version_info < (3, 0):
-    print('This application requires at least Python 3.0 to run.')
+    print('\033[33mThis application requires at least Python 3.0 to run.\033[0m')
     sys.exit(1)
 
 dependencies = ['nose', 'psutil']
