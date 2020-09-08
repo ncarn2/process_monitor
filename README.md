@@ -19,6 +19,10 @@ python3 system_monitor.py
 
 `python3 system_monitor.py` in the local directory assuming you have all of the dependencies installed. 
 
+## Example
+
+![System Monitor Image](system_monitor.png)
+
 ## Notes
 Does not work great with windows.
 
