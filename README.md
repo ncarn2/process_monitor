@@ -24,7 +24,9 @@ python3 system_monitor.py
 ![System Monitor Image](system_monitor.png)
 
 ## Notes
-Does not work great with windows.
+- Does not work great with Windows.
+- Resizing is not implemented.
+- Sorting is not complete.
 
 ## License
 
