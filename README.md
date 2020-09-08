@@ -23,10 +23,10 @@ python3 system_monitor.py
 
 ![System Monitor Image](system_monitor.png)
 
-## Notes
+## Known Issues
 - Does not work great with Windows.
-- Resizing is not implemented.
-- Sorting is not complete.
+- Resizing usually crashes. 
+- CPU, MEM, and COMMAND sorting are not implemented. 
 
 ## License
 
